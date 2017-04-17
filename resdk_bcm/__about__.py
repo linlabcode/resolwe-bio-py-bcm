@@ -27,7 +27,7 @@ __url__ = 'https://github.com/linlabcode/resolwe-bio-py-bcm'
 
 # Semantic versioning is used. For more information see:
 # https://packaging.python.org/en/latest/distributing/#semantic-versioning-preferred
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 __author__ = ''
 __email__ = ''

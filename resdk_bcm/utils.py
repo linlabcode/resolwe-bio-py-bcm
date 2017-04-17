@@ -93,9 +93,10 @@ def create_links(resource, genome_name, links, path='resdk_results'):
                 for file_name in data.files(field_name=link['field']):
                     file_path = os.path.join(DATA_FOLDER_PATH, str(data.id), file_name)
 
-                    link_name = '{:05}_{}_{}'.format(
+                    link_name = '{:05}_{}_{}_{}'.format(
                         data.id,
                         data.sample.slug if data.sample else data.slug,
+                        link['field'],
                         genome_name,
                     )
                     if '.' in file_name:
