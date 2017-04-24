@@ -24,7 +24,11 @@ from resdk.resources import Collection, Sample
 
 from resdk_bcm.utils import create_links
 
+from resdk_bcm.utils import link_project
+
 
 Collection.create_links = create_links
 
 Sample.create_links = create_links
+
+Collection.link_project = link_project

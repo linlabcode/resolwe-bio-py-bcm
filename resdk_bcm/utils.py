@@ -112,3 +112,117 @@ def create_links(resource, genome_name, links, path='resdk_results'):
 
     if ssh['connection'] is not None:
         ssh['connection'].logout()
+
+
+def link_project(resource, genome_name, path, output_table=''):
+    links = [
+                {'type': 'data:alignment:bam:bowtie2:', 'field': 'bam', 'subfolder': 'bams'},
+                {'type': 'data:alignment:bam:bowtie2:', 'field': 'bai', 'subfolder': 'bams'},
+                {'type': 'data:alignment:bam:hisat2:', 'field': 'bam', 'subfolder': 'bams'},
+                {'type': 'data:alignment:bam:hisat2:', 'field': 'bai', 'subfolder': 'bams'},
+                {'type': 'data:chipseq:macs14:','field':'peaks_bed','subfolder': 'macs14'},
+                {'type': 'data:chipseq:rose2:','field':'ALL','subfolder': 'rose2'},
+                {'type': 'data:cufflinks:cuffquant:','field':'ALL','subfolder': 'cufflinks/cuffquant'},
+                {'type': 'data:expressionset:cuffnorm:','field':'ALL','subfolder': 'cufflinks/cuffnorm'},
+            ]
+
+    # This must be a dict, so the reference doesn't breake even if it
+    # is assigned in sub-function.
+    ssh = {'connection': None}
+    def _create_local_link(src, dest):
+        dest_dir = os.path.dirname(dest)
+        if not os.path.isdir(dest_dir):
+            os.makedirs(dest_dir)
+        if os.path.isfile(dest):
+            os.remove(dest)
+        os.symlink(src, dest)
+    def _create_ssh_link(src, dest):
+        if ssh['connection'] is None:
+            print('Credentials for connection to {}:'.format(SSH_HOSTNAME))
+            username = input('username: ')
+            password = getpass.getpass('password: ')
+            ssh['connection'] = pxssh.pxssh()
+            ssh['connection'].login(SSH_HOSTNAME, username, password)
+        dest_dir = os.path.dirname(dest)
+        ssh['connection'].sendline('mkdir -p "{}"'.format(dest_dir))
+        ssh['connection'].sendline('ln -sf "{}" "{}"'.format(src, dest))
+
+    data_table = [['FILE_PATH','UNIQUE_ID','GENOME','NAME','BACKGROUND','ENRICHED_REGION','ENRICHED_MACS','COLOR','RAW']]
+
+    print('Linking results...')
+    for link in links:
+        for data in resource.data.filter(status='OK', type=link['type']):
+
+            if link['field'] == 'ALL':
+                files_filter = {}
+            else:
+                files_filter = {'field_name': link['field']}
+
+            for file_name in data.files(**files_filter):
+
+                if link['field'] == 'bam':
+                    bam_path = os.path.join(path, 'bams/')
+                    unique_ID = str(data.id)
+                    genome = str(genome_name).upper()
+                    name = str(data.sample.name).upper()
+                    bg = data.sample.get_background(fail_silently=True)
+                    if bg is not None:
+                        background = str(data.sample.get_background(fail_silently=True).slug).upper()
+                    else:
+                        background = 'NONE'
+                    enriched_region = 'NONE'
+                    color = '0,0,0'
+                    macs = data.sample.data.filter(type = 'data:chipseq:macs14')
+                    if len(macs):
+                        enriched_macs ='{:05}_{}'.format(
+                           data.id,
+                           macs[0].output['peaks_bed']['file']
+                        )
+
+                    else:
+                        enriched_macs = 'NONE'
+
+                    new_line = [
+                       bam_path, 
+                       unique_ID, 
+                       genome, 
+                       name, 
+                       background,
+                       enriched_region, 
+                       enriched_macs, 
+                       color,
+                        '',
+                    ]
+                    
+                    data_table.append(new_line)
+
+                file_path = os.path.join(DATA_FOLDER_PATH, str(data.id), file_name)                         
+                link_name = '{:05}_{}'.format(
+                    data.id,
+                    file_name,
+                )
+                link_path = os.path.join(path, link['subfolder'], link_name)
+                if os.path.isfile(file_path):
+                    _create_local_link(file_path, link_path)
+                else:
+                    _create_ssh_link(file_path, link_path)
+
+
+    sep = '\t'
+    if output_table == '':
+        output_table = 'data_table.txt'
+
+
+    fh_out = open(output_table, 'w')
+    if len(sep) == 0:
+        for i in data_table:
+            fh_out.write(str(i) + '\n')
+    else:
+        for line in data_table:
+            fh_out.write(sep.join([str(x) for x in line]) + '\n')
+
+    fh_out.close()
+
+
+    if ssh['connection'] is not None:
+        ssh['connection'].logout()
